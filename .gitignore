@@ -1,0 +1,12 @@
+# Node
+node_modules/
+npm-debug.log*
+pnpm-lock.yaml
+
+# Editor/OS
+.vscode/
+.DS_Store
+
+# Builds
+dist/
+build/
