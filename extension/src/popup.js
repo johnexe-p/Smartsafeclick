@@ -39,7 +39,7 @@ document.getElementById('view-history').addEventListener('click', () => {
   alert('History feature coming soon!');
 });
 
-// Load stats when popup opens
+// Load stats when popup shows
 loadStats();
 
 // Listen for updates from background script
