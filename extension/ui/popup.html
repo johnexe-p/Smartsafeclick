@@ -4,13 +4,258 @@
     <meta charset="utf-8">
     <title>SmartSafe Click</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 16px; }
-      .title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
-      .muted { color: #666; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        width: 320px;
+        background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
+        color: #ffffff;
+        padding: 0;
+      }
+      
+      .header {
+        background: linear-gradient(135deg, #5f27cd 0%, #341f97 100%);
+        padding: 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        animation: pulse 3s ease-in-out infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.5; }
+        50% { transform: scale(1.1); opacity: 0.8; }
+      }
+      
+      .logo {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        position: relative;
+        z-index: 1;
+      }
+      
+      .tagline {
+        font-size: 11px;
+        opacity: 0.9;
+        margin-top: 5px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        position: relative;
+        z-index: 1;
+      }
+      
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(46, 213, 115, 0.2);
+        color: #2ed573;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        margin-top: 12px;
+        border: 1px solid rgba(46, 213, 115, 0.3);
+        position: relative;
+        z-index: 1;
+      }
+      
+      .status-dot {
+        width: 6px;
+        height: 6px;
+        background: #2ed573;
+        border-radius: 50%;
+        animation: blink 2s ease-in-out infinite;
+      }
+      
+      @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      
+      .content {
+        padding: 20px;
+      }
+      
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      
+      .stat-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 16px;
+        transition: all 0.3s ease;
+      }
+      
+      .stat-card:hover {
+        background: rgba(255, 255, 255, 0.08);
+        transform: translateY(-2px);
+      }
+      
+      .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 4px;
+        background: linear-gradient(135deg, #5f27cd 0%, #a29bfe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .stat-value.danger {
+        background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .stat-label {
+        font-size: 11px;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+      }
+      
+      .info-section {
+        background: rgba(95, 39, 205, 0.1);
+        border: 1px solid rgba(95, 39, 205, 0.2);
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+      
+      .info-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #a29bfe;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      
+      .info-text {
+        font-size: 12px;
+        color: #b0b0b0;
+        line-height: 1.5;
+      }
+      
+      .action-buttons {
+        display: flex;
+        gap: 8px;
+      }
+      
+      .btn {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .btn-primary {
+        background: linear-gradient(135deg, #5f27cd 0%, #341f97 100%);
+        color: white;
+      }
+      
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(95, 39, 205, 0.4);
+      }
+      
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.05);
+        color: #888;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+      
+      .footer {
+        padding: 12px 20px;
+        text-align: center;
+        font-size: 10px;
+        color: #666;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      
+      .shield-icon {
+        font-size: 14px;
+      }
     </style>
   </head>
   <body>
-    <div class="title">SmartSafe Click</div>
-    <p class="muted">AI link safety is active. Clicking on links will be checked in the background.</p>
+    <div class="header">
+      <div class="logo">🛡️ SmartSafe Click</div>
+      <div class="tagline">AI-Powered Link Protection</div>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        Active Protection
+      </div>
+    </div>
+    
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="links-scanned">0</div>
+          <div class="stat-label">Links Scanned</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value danger" id="threats-blocked">0</div>
+          <div class="stat-label">Threats Blocked</div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <div class="info-title">
+          <span class="shield-icon">🔍</span>
+          Real-Time Scanning
+        </div>
+        <div class="info-text">
+          Every link you click is analyzed by our AI to detect phishing, malware, and other threats before you visit them.
+        </div>
+      </div>
+      
+      <div class="action-buttons">
+        <button class="btn btn-primary" id="view-settings">Settings</button>
+        <button class="btn btn-secondary" id="view-history">History</button>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Protected by SmartSafe Click v0.1.0
+    </div>
+    
+    <script src="../src/popup.js"></script>
   </body>
 </html>

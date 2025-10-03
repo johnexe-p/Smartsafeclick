@@ -1,3 +1,17 @@
+// Initialize stats on install
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ linksScanned: 0, threatsBlocked: 0 });
+});
+
+// Helper function to update stats
+async function updateStats(isRisky) {
+  const stats = await chrome.storage.local.get(['linksScanned', 'threatsBlocked']);
+  const linksScanned = (stats.linksScanned || 0) + 1;
+  const threatsBlocked = isRisky ? (stats.threatsBlocked || 0) + 1 : (stats.threatsBlocked || 0);
+  
+  await chrome.storage.local.set({ linksScanned, threatsBlocked });
+}
+
 // TEST VERSION with mock data - will show modal for demonstration
 chrome.runtime.onMessage.addListener(async (msg, sender, sendResponse) => {
   if (msg.type !== 'CHECK_URL') return;
