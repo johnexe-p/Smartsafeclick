@@ -1,306 +1,251 @@
+// ================================
+// SmartSafeClick Content Script
+// ================================
+
 // Store pending navigation
 let pendingUrl = null;
 let pendingEvent = null;
+let pendingTimeout = null;
 
-// Intercepts clicks on links; sends URL to background for scoring
+// Intercept clicks on links
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href]');
   if (!a) return;
-  
+
+  const href = a.getAttribute('href');
+  if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+
   // Prevent default navigation temporarily
   e.preventDefault();
   e.stopPropagation();
-  
-  // Store the event and URL
+
   pendingUrl = a.href;
   pendingEvent = e;
-  
-  // Send to background for checking
-  chrome.runtime.sendMessage({ type: 'CHECK_URL', url: a.href });
+
+  // Ask background to check URL
+  chrome.runtime.sendMessage({ type: 'CHECK_URL', url: a.href }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.warn('Background unreachable:', chrome.runtime.lastError.message);
+      window.location.href = pendingUrl;
+      clearPending();
+      return;
+    }
+
+    if (response && response.type === 'URL_SAFE') {
+      showSafePopup(pendingUrl);
+      setTimeout(() => {
+        window.location.href = pendingUrl;
+        clearPending();
+      }, 3000);
+    } else if (response && response.type === 'URL_RISKY') {
+      showWarningModal(response.risk, response.reason, pendingUrl);
+      clearPending();
+    }
+  });
+
+  // Fallback — allow if no response
+  pendingTimeout = setTimeout(() => {
+    if (pendingUrl) {
+      console.warn('No response from background, allowing navigation...');
+      window.location.href = pendingUrl;
+      clearPending();
+    }
+  }, 1500);
 }, true);
 
-// Listen for response from background script
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'URL_SAFE') {
-    // Link is safe, proceed with navigation
-    if (pendingUrl) {
+// Clear stored pending data
+function clearPending() {
+  pendingUrl = null;
+  pendingEvent = null;
+  if (pendingTimeout) clearTimeout(pendingTimeout);
+  pendingTimeout = null;
+}
+
+// Handle async responses
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'URL_SAFE' && pendingUrl) {
+    showSafePopup(pendingUrl);
+    setTimeout(() => {
       window.location.href = pendingUrl;
-      pendingUrl = null;
-    }
-  } else if (msg.type === 'URL_RISKY') {
-    // Show warning modal
+      clearPending();
+    }, 3000);
+  } else if (msg.type === 'URL_RISKY' && pendingUrl) {
     showWarningModal(msg.risk, msg.reason, pendingUrl);
+    clearPending();
   }
 });
 
-// Create and show warning modal
+// ================================
+// Safe Link Popup
+// ================================
+function showSafePopup(url) {
+  const existing = document.getElementById('smartsafe-safe-popup');
+  if (existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.id = 'smartsafe-safe-popup';
+  popup.innerHTML = `
+    <div class="smartsafe-safe-container">
+      ✅ Link Safe: <span class="smartsafe-safe-url">${truncateUrl(url)}</span>
+    </div>
+  `;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #smartsafe-safe-popup {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      z-index: 999999;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+    }
+    #smartsafe-safe-popup.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .smartsafe-safe-url {
+      font-weight: bold;
+      color: #155724;
+    }
+  `;
+  popup.appendChild(style);
+
+  document.body.appendChild(popup);
+
+  // Animate in and auto remove
+  setTimeout(() => popup.classList.add('show'), 50);
+  setTimeout(() => {
+    popup.classList.remove('show');
+    setTimeout(() => popup.remove(), 300);
+  }, 3000);
+}
+
+// ================================
+// Warning Modal (Dangerous Link)
+// ================================
 function showWarningModal(risk, reason, url) {
-  // Remove any existing modal
   const existing = document.getElementById('smartsafe-modal');
   if (existing) existing.remove();
-  
-  // Create modal overlay
+
   const modal = document.createElement('div');
   modal.id = 'smartsafe-modal';
   modal.innerHTML = `
     <div class="smartsafe-overlay">
       <div class="smartsafe-modal-content">
-        <div class="smartsafe-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-            <line x1="12" y1="9" x2="12" y2="13"></line>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-        </div>
-        <h2 class="smartsafe-title">⚠️ Dangerous Link Detected</h2>
-        <div class="smartsafe-risk-badge">Risk Level: ${risk}%</div>
+        <div class="smartsafe-icon">⚠️</div>
+        <h2 class="smartsafe-title">Suspicious Link</h2>
+        <div class="smartsafe-url">${truncateUrl(url)}</div>
         <p class="smartsafe-reason">${reason}</p>
-        <div class="smartsafe-url">
-          <span class="smartsafe-url-label">Blocked URL:</span>
-          <span class="smartsafe-url-text">${truncateUrl(url)}</span>
-        </div>
-        <div class="smartsafe-warning-text">
-          This link may lead to phishing, malware, or other security threats. Proceeding could compromise your data and device security.
-        </div>
         <div class="smartsafe-buttons">
-          <button class="smartsafe-btn smartsafe-btn-safe" id="smartsafe-go-back">
-            <span>Go Back (Safe)</span>
-          </button>
-          <button class="smartsafe-btn smartsafe-btn-danger" id="smartsafe-proceed">
-            <span>Proceed Anyway</span>
-          </button>
-        </div>
-        <div class="smartsafe-footer">
-          Protected by SmartSafe Click
+          <button id="smartsafe-cancel">Stay Safe (Cancel)</button>
+          <button id="smartsafe-proceed">Proceed Anyway</button>
         </div>
       </div>
     </div>
   `;
-  
-  // Add styles
+
   const style = document.createElement('style');
   style.textContent = `
     .smartsafe-overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(8px);
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       z-index: 999999;
-      animation: smartsafe-fadein 0.3s ease;
     }
-    
-    @keyframes smartsafe-fadein {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    
     .smartsafe-modal-content {
-      background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
-      border-radius: 20px;
-      padding: 40px;
-      max-width: 500px;
-      width: 90%;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      background: #fff;
+      padding: 20px 30px;
+      border-radius: 10px;
+      width: 380px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       text-align: center;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      animation: smartsafe-slideup 0.3s ease;
+      font-family: Arial, sans-serif;
+      animation: fadeIn 0.3s ease;
     }
-    
-    @keyframes smartsafe-slideup {
-      from { 
-        transform: translateY(30px);
-        opacity: 0;
-      }
-      to { 
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-    
     .smartsafe-icon {
-      margin: 0 auto 20px;
-      width: 64px;
-      height: 64px;
-      color: #ff4757;
-      animation: smartsafe-pulse 2s ease-in-out infinite;
+      font-size: 42px;
+      margin-bottom: 10px;
     }
-    
-    @keyframes smartsafe-pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    
     .smartsafe-title {
-      color: #ffffff;
-      font-size: 26px;
-      font-weight: 700;
-      margin: 0 0 20px 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #b71c1c;
+      font-size: 22px;
+      font-weight: bold;
+      margin-bottom: 10px;
     }
-    
-    .smartsafe-risk-badge {
-      display: inline-block;
-      background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%);
-      color: white;
-      padding: 8px 20px;
-      border-radius: 20px;
-      font-weight: 600;
-      font-size: 14px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
-    }
-    
-    .smartsafe-reason {
-      color: #e0e0e0;
-      font-size: 16px;
-      margin: 20px 0;
-      line-height: 1.6;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    
     .smartsafe-url {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 15px;
-      border-radius: 10px;
-      margin: 20px 0;
-      border-left: 3px solid #ff4757;
-    }
-    
-    .smartsafe-url-label {
-      display: block;
-      color: #888;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 5px;
-      font-weight: 600;
-    }
-    
-    .smartsafe-url-text {
-      color: #ff4757;
-      font-size: 14px;
-      word-break: break-all;
-      font-family: monospace;
-    }
-    
-    .smartsafe-warning-text {
-      color: #b0b0b0;
+      background: #f8f9fa;
+      padding: 6px;
+      border-radius: 6px;
+      margin-bottom: 8px;
       font-size: 13px;
-      line-height: 1.6;
-      margin: 20px 0;
-      padding: 15px;
-      background: rgba(255, 71, 87, 0.1);
-      border-radius: 10px;
-      border: 1px solid rgba(255, 71, 87, 0.2);
+      word-break: break-all;
     }
-    
-    .smartsafe-buttons {
-      display: flex;
-      gap: 15px;
-      margin-top: 30px;
+    .smartsafe-reason {
+      color: #555;
+      font-size: 14px;
+      margin-bottom: 15px;
     }
-    
-    .smartsafe-btn {
-      flex: 1;
-      padding: 14px 24px;
+    .smartsafe-buttons button {
+      margin: 6px;
+      padding: 8px 14px;
+      border-radius: 6px;
       border: none;
-      border-radius: 12px;
-      font-size: 15px;
-      font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s ease;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      position: relative;
-      overflow: hidden;
+      font-size: 14px;
+      transition: background 0.2s ease;
     }
-    
-    .smartsafe-btn:before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.1);
-      transform: translate(-50%, -50%);
-      transition: width 0.6s, height 0.6s;
-    }
-    
-    .smartsafe-btn:hover:before {
-      width: 300px;
-      height: 300px;
-    }
-    
-    .smartsafe-btn span {
-      position: relative;
-      z-index: 1;
-    }
-    
-    .smartsafe-btn-safe {
-      background: linear-gradient(135deg, #5f27cd 0%, #341f97 100%);
+    #smartsafe-cancel {
+      background: #4caf50;
       color: white;
-      box-shadow: 0 4px 15px rgba(95, 39, 205, 0.4);
     }
-    
-    .smartsafe-btn-safe:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(95, 39, 205, 0.5);
+    #smartsafe-cancel:hover {
+      background: #45a049;
     }
-    
-    .smartsafe-btn-danger {
-      background: rgba(255, 255, 255, 0.1);
-      color: #ff4757;
-      border: 2px solid rgba(255, 71, 87, 0.3);
+    #smartsafe-proceed {
+      background: #b71c1c;
+      color: white;
     }
-    
-    .smartsafe-btn-danger:hover {
-      background: rgba(255, 71, 87, 0.1);
-      border-color: #ff4757;
-      transform: translateY(-2px);
+    #smartsafe-proceed:hover {
+      background: #a31515;
     }
-    
-    .smartsafe-btn:active {
-      transform: translateY(0);
-    }
-    
-    .smartsafe-footer {
-      margin-top: 25px;
-      color: #666;
-      font-size: 12px;
-      font-weight: 500;
-      letter-spacing: 0.5px;
+    @keyframes fadeIn {
+      from {opacity: 0; transform: scale(0.95);}
+      to {opacity: 1; transform: scale(1);}
     }
   `;
-  
   modal.appendChild(style);
   document.body.appendChild(modal);
-  
-  // Add event listeners
-  document.getElementById('smartsafe-go-back').addEventListener('click', () => {
+
+  // Buttons
+  document.getElementById('smartsafe-cancel').addEventListener('click', () => {
     modal.remove();
-    pendingUrl = null;
+    clearPending();
   });
-  
+
   document.getElementById('smartsafe-proceed').addEventListener('click', () => {
     modal.remove();
-    if (pendingUrl) {
-      window.location.href = pendingUrl;
-      pendingUrl = null;
-    }
+    if (url) window.location.href = url;
+    clearPending();
   });
 }
 
-// Helper function to truncate long URLs
+// ================================
+// Helpers
+// ================================
 function truncateUrl(url) {
-  if (url.length > 60) {
-    return url.substring(0, 57) + '...';
-  }
-  return url;
+  return url.length > 60 ? url.substring(0, 57) + '...' : url;
 }
