@@ -9,6 +9,7 @@ chrome.runtime.onInstalled.addListener(() => {
 async function updateStats(isRisky) {
   const stats = await chrome.storage.local.get(['linksScanned', 'threatsBlocked']);
   const linksScanned = (stats.linksScanned || 0) + 1;
+<<<<<<< Updated upstream
   const threatsBlocked = isRisky
     ? (stats.threatsBlocked || 0) + 1
     : (stats.threatsBlocked || 0);
@@ -184,3 +185,48 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
+=======
+  const threatsBlocked = isRisky ? (stats.threatsBlocked || 0) + 1 : (stats.threatsBlocked || 0);
+
+  await chrome.storage.local.set({ linksScanned, threatsBlocked });
+  console.log('Stats updated:', { linksScanned, threatsBlocked });
+}
+
+// TEST VERSION with mock data
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type !== 'CHECK_URL') return; // Ignore irrelevant messages
+
+  // Run async logic in a self-invoking async function
+  (async () => {
+    try {
+      // Simulate delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Randomly mark half links as risky
+      const isRisky = Math.random() > 0.5;
+
+      // Update stats
+      await updateStats(isRisky);
+
+      // Respond accordingly
+      if (isRisky) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: 'URL_RISKY',
+          risk: 85,
+          reason: "This link matches known phishing patterns and may steal your personal information.",
+          url: msg.url
+        });
+      } else {
+        chrome.tabs.sendMessage(sender.tab.id, { type: 'URL_SAFE' });
+      }
+
+    } catch (err) {
+      console.error("Mock test error:", err);
+      chrome.tabs.sendMessage(sender.tab.id, { type: 'URL_SAFE' });
+    }
+  })();
+
+  // Return true to keep the message channel open for async operations
+  return true;
+});
+>>>>>>> Stashed changes
